@@ -1,0 +1,302 @@
+-- Q1 Average number of items per order - daily, monthly, weekly, state, city, pincode
+
+Select 
+
+EXTRACT(DAY from order_received_timestamp) AS daily,
+
+EXTRACT(MONTH from order_received_timestamp) AS monthly,
+
+EXTRACT(WEEK from order_received_timestamp) AS weekly,
+
+a.state AS state,
+
+a.city AS city,
+
+f.pincode AS pincode,
+
+avg(item_count) as avg_items
+
+From  `fractalb.star_schema.fact_daily_orders` f
+
+left join `fractalb.star_schema.dim_customer` c
+
+  on f.customerid = c.customerid
+
+left join `fractalb.star_schema.dim_address` a
+
+  on c.address_id = a.address_id
+
+group by
+ 
+daily,
+
+monthly,
+
+weekly,
+
+state,
+
+city,
+
+pincode
+
+
+-- Q2 Average amount of sales per order -  daily, monthly, weekly, state, city, pincode 
+
+Select
+  
+EXTRACT(DAY from f.order_received_timestamp) AS daily, 
+
+EXTRACT(MONTH from f.order_received_timestamp) AS monthly, 
+
+EXTRACT(WEEK from f.order_received_timestamp) AS weekly, 
+
+a.state AS state, 
+
+a.city AS city, 
+
+f.pincode AS pincode, 
+
+avg(order_amount) as avg_sales 
+
+From  `fractalb.star_schema.fact_daily_orders` f 
+
+left join `fractalb.star_schema.dim_customer` c 
+
+  on f.customerid = c.customerid 
+
+left join `fractalb.star_schema.dim_address` a 
+
+  on c.address_id = a.address_id 
+
+group by  
+
+daily, 
+
+monthly, 
+
+weekly, 
+
+sTATE, 
+
+city, 
+
+pincode
+
+
+
+-- Q3 total number of units sold per day of a product SKU and its monthly trend 
+
+ 
+select 
+
+p.productname,p.sku, 
+
+EXTRACT(DAY from f.order_delivery_timestamp) as day, 
+
+EXTRACT(MONTH from f.order_delivery_timestamp) as month, 
+
+sum(quantity) as units_sold 
+
+From  `fractalb.star_schema.dim_product` p  
+
+join `fractalb.star_schema.f_order_details` f 
+
+on p.productid = f.productid 
+
+group by productname, 
+
+sku, 
+
+day, 
+
+month 
+
+
+-- 4 Total Order Amount on daily basis, also to be able to split by product and geography 
+
+select  
+
+EXTRACT(DATE from f.order_received_timestamp) AS daily, 
+
+o.productid, 
+
+a.city, 
+
+sum(order_amount) total_sales 
+
+from `fractalb.star_schema.fact_daily_orders` f 
+
+join `fractalb.star_schema.f_order_details` o on f.orderid = o.orderid  
+
+join `fractalb.star_schema.dim_customer` c on f.customerid = c.customerid 
+
+join `fractalb.star_schema.dim_address` a on c.address_id = a.address_id 
+
+group by  
+
+daily, 
+
+productid, 
+
+city 
+
+order by daily 
+
+
+-- Q5 Distribution of orders according to area ( state, city, pincode etc) 
+
+select  
+
+a.state, 
+
+a.city, 
+
+count(distinct f.orderid) NumberOfOrders 
+
+from `fractalb.star_schema.fact_daily_orders` f 
+
+join `fractalb.star_schema.dim_customer` c on f.customerid = c.customerid 
+
+join `fractalb.star_schema.dim_address` a on c.address_id = a.address_id 
+
+group by  
+
+state,city 
+
+
+
+-- Q6 Average order amount per customer on daily basis 
+
+select  
+
+c.customerid AS id, 
+
+c.name AS name, 
+
+EXTRACT(DATE from order_received_timestamp) date, 
+
+round(avg(order_amount),2) AS OrderAmount 
+
+from `fractalb.star_schema.fact_daily_orders` f 
+
+left join `fractalb.star_schema.dim_customer` c 
+
+on f.customerid = c.customerid  
+
+group by  
+
+id, date, name
+
+
+
+-- Q7 New Customers on daily basis 
+
+select  
+
+START_DATE, 
+
+count(customerid) NewCustomers 
+
+from `fractalb.star_schema.dim_customer` 
+
+where customerid in (select customerid from `fractalb.star_schema.dim_customer` 
+
+group by customerid having count(*)=1) 
+
+group by START_DATE 
+
+
+
+-- Q8 Total count of customers everyday 
+
+select distinct 
+
+EXTRACT(DATE from order_received_timestamp) Dates, 
+
+count(*) over (partition by EXTRACT(DATE from order_received_timestamp)) CustomerCounts 
+
+from `fractalb.star_schema.fact_daily_orders`  
+
+group by  
+
+order_received_timestamp 
+
+order by Dates 
+
+
+
+--  Q9 Average time to delivery order. Min and Max time. To be able to slice and dice on hour, weekday, weekend, daily, monthly, geography,  
+
+select distinct 
+
+EXTRACT(DATE from f.order_delivery_timestamp) DATES, 
+
+EXTRACT(WEEK from f.order_delivery_timestamp) WEEKS, 
+
+EXTRACT(DAYOFWEEK from f.order_delivery_timestamp) WEEKDAYS, 
+
+EXTRACT(MONTH from f.order_delivery_timestamp) MONTHS, 
+
+a.City, 
+
+Min(f.order_delivery_time_seconds) MinDeliveryTime, 
+
+max(f.order_delivery_time_seconds) MaxDeliveryTime, 
+
+avg(f.order_delivery_time_seconds) AvgDeliveryTime, 
+
+from `fractalb.star_schema.fact_daily_orders` f 
+
+join `fractalb.star_schema.dim_customer` c on f.customerid = c.customerid 
+
+join `fractalb.star_schema.dim_address` a on c.address_id = a.address_id 
+
+group by  
+
+DATES, 
+
+WEEKS, 
+
+WEEKDAYS, 
+
+MONTHS, 
+
+City 
+
+
+
+-- Q10 Total orders : to be able to slice and dice on hour, weekday, weekend, daily, monthly, geography 
+
+select distinct 
+
+EXTRACT(DATE from f.order_delivery_timestamp) DATES, 
+
+EXTRACT(WEEK from f.order_delivery_timestamp) WEEKS, 
+
+EXTRACT(DAYOFWEEK from f.order_delivery_timestamp) WEEKDAYS, 
+
+EXTRACT(MONTH from f.order_delivery_timestamp) MONTHS, 
+
+a.City, 
+
+count(orderid) NumberOfOrders 
+
+from `fractalb.star_schema.fact_daily_orders` f 
+
+join `fractalb.star_schema.dim_customer` c on f.customerid = c.customerid 
+
+join `fractalb.star_schema.dim_address` a on c.address_id = a.address_id 
+
+group by  
+
+DATES, 
+
+WEEKS, 
+
+WEEKDAYS, 
+
+MONTHS, 
+
+City 
+ 
